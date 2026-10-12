@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lembar Jawaban Kuis</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+  }
+  .container {
+    background: #fff;
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 620px;
+    position: relative;
+    z-index: 1;
+    transition: filter 0.3s;
+  }
+  .container.blurred { filter: blur(6px); pointer-events: none; }
+  .hidden { display: none !important; }
+
+  /* ── Judul ── */
+  .title {
+    text-align: center; font-size: 24px; font-weight: bold;
+    color: #e53935; letter-spacing: 1px; margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center; font-size: 13px; color: #888;
+    margin-bottom: 25px; padding-bottom: 15px;
+    border-bottom: 2px solid #e53935;
+  }
+
+  /* ── Form Identitas ── */
+  .header-info {
+    display: flex; flex-direction: column;
+    gap: 12px; margin-bottom: 30px;
+  }
+  .header-info label {
+    display: block; font-size: 13px; font-weight: bold;
+    color: #333; margin-bottom: 5px;
+  }
+  .header-info input, .header-info select {
+    width: 100%; padding: 9px 12px;
+    border: 1px solid #ccc; border-radius: 4px;
+    font-size: 14px; transition: border-color 0.2s;
+    font-family: inherit; background: #fff;
+  }
+  .header-info input:focus, .header-info select:focus {
+    outline: none; border-color: #e53935;
+  }
+
+  /* ── Info Bar (Timer & Progress) ── */
+  .info-bar {
+    display: flex; justify-content: space-between;
+    align-items: center; flex-wrap: wrap;
+    gap: 10px; margin-bottom: 20px;
+    padding-bottom: 12px; border-bottom: 1px dashed #ccc;
+  }
+  .info-bar .progress {
+    font-weight: 600; color: #555; font-size: 14px;
+    background: #f1f5f9; padding: 5px 14px;
+    border-radius: 20px; border: 1px solid #e2e8f0;
+  }
+  .info-bar .timer {
+    font-size: 1.3rem; font-weight: 700; color: #dc2626;
+    background: #fef2f2; padding: 4px 16px;
+    border-radius: 20px; border: 1px solid #fca5a5;
+    font-variant-numeric: tabular-nums;
+  }
+  .info-bar .timer.warning {
+    animation: pulse 1s infinite;
+    background: #fee2e2; border-color: #ef4444;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* ── Soal ── */
+  .question-row {
+    display: flex; align-items: center; margin-bottom: 16px;
+  }
+  .question-number {
+    font-size: 20px; font-weight: bold; color: #e53935;
+    width: 45px; flex-shrink: 0;
+  }
+  .options { display: flex; gap: 12px; flex-wrap: wrap; }
+  .option-label { cursor: pointer; display: inline-block; }
+  .option-label input { display: none; }
+  .circle {
+    width: 42px; height: 42px;
+    border: 2px solid #e53935; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: bold; color: #e53935;
+    transition: all 0.2s ease; user-select: none;
+    font-family: Arial, sans-serif;
+  }
+  .option-label input:checked + .circle {
+    background-color: #e53935; color: #fff;
+    transform: scale(1.08);
+    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.35);
+  }
+  .option-label:hover .circle { background-color: #ffebee; }
+  .option-label input:checked:hover + .circle { background-color: #c62828; }
+
+  /* ── Tombol ── */
+  .actions { margin-top: 30px; text-align: center; }
+  .btn {
+    background-color: #e53935; color: #fff;
+    border: none; padding: 12px 40px;
+    font-size: 15px; font-weight: bold;
+    border-radius: 5px; cursor: pointer;
+    transition: all 0.2s; letter-spacing: 1px;
+    font-family: inherit;
+  }
+  .btn:hover:not(:disabled) {
+    background-color: #c62828; transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(229, 57, 53, 0.3);
+  }
+  .btn:disabled { background-color: #aaa; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(135deg, #e53935, #c62828);
+    padding: 14px 50px; font-size: 16px;
+    border-radius: 30px;
+  }
+
+  /* ── Notif ── */
+  .notif {
+    display: none; margin-top: 15px; padding: 12px;
+    border-radius: 5px; font-size: 14px; text-align: center;
+  }
+  .notif.success { background: #e8f5e9; color: #2e7d32; display: block; }
+  .notif.error   { background: #ffebee; color: #c62828; display: block; }
+
+  /* ── Custom Alert ── */
+  #customAlertOverlay {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(4px);
+    display: none; justify-content: center; align-items: center;
+    z-index: 10000;
+  }
+  #customAlertOverlay.active { display: flex; }
+  .alert-box {
+    background: #fff; padding: 28px 32px;
+    border-radius: 20px; max-width: 420px; width: 90%;
+    text-align: center; border: 1px solid #cbd5e1;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.12);
+  }
+  .alert-box .alert-icon { font-size: 2.8rem; margin-bottom: 8px; }
+  .alert-box .alert-message {
+    font-size: 1.05rem; color: #1e293b;
+    line-height: 1.5; margin-bottom: 20px;
+  }
+  .alert-box .alert-btn-group {
+    display: flex; gap: 10px; justify-content: center;
+  }
+  .alert-box .alert-btn {
+    background: #e53935; color: white;
+    border: none; padding: 10px 24px;
+    border-radius: 12px; font-size: 0.95rem;
+    font-weight: 600; cursor: pointer;
+    transition: 0.2s; font-family: inherit;
+  }
+  .alert-box .alert-btn:hover { background: #c62828; }
+  .alert-box .alert-btn-cancel {
+    background: #e2e8f0; color: #1e293b;
+  }
+  .alert-box .alert-btn-cancel:hover { background: #cbd5e1; }
+
+  /* ── Fullscreen Warning ── */
+  #fullscreenWarning {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+    display: none; justify-content: center; align-items: center;
+    z-index: 9999;
+  }
+  .warning-box {
+    background: #fff; padding: 32px;
+    border-radius: 20px; max-width: 420px;
+    text-align: center; border: 2px solid #ef4444;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+  }
+  .warning-box h3 {
+    font-size: 1.6rem; color: #dc2626; margin-bottom: 8px;
+  }
+  .warning-box p {
+    font-size: 0.95rem; color: #475569; margin: 8px 0;
+  }
+  .warning-box .timer-big {
+    font-size: 2.8rem; font-weight: 800;
+    color: #d97706; margin: 8px 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .warning-box .btn-back {
+    background: #e53935; color: white;
+    border: none; padding: 10px 24px;
+    border-radius: 20px; font-weight: 600;
+    cursor: pointer; margin-top: 10px;
+    font-family: inherit; font-size: 0.95rem;
+  }
+  .warning-box .btn-back:hover { background: #c62828; }
+
+  /* ── Focus Loss Badge ── */
+  .focus-loss-badge {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(239, 68, 68, 0.95);
+    color: white; padding: 10px 24px;
+    border-radius: 20px; font-weight: 700;
+    font-size: 0.9rem; display: none;
+    z-index: 999; backdrop-filter: blur(4px);
+    border: 1px solid #ef4444; pointer-events: none;
+    text-align: center;
+  }
+  .focus-loss-badge.active {
+    display: block; animation: pulseBadge 1s infinite;
+  }
+  @keyframes pulseBadge {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 480px) {
+    body { padding: 10px; }
+    .container { padding: 20px 18px; }
+    .options { gap: 6px; }
+    .circle { width: 34px; height: 34px; font-size: 14px; }
+    .question-number { width: 32px; font-size: 17px; }
+    .title { font-size: 18px; }
+    .btn { padding: 12px 28px; font-size: 14px; }
+    .btn-primary { padding: 12px 36px; }
+    .info-bar .timer { font-size: 1.1rem; padding: 3px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Custom Alert -->
+<div id="customAlertOverlay">
+  <div class="alert-box">
+    <div class="alert-icon" id="alertIcon">⚠️</div>
+    <div class="alert-message" id="alertMessage">Pesan</div>
+    <div class="alert-btn-group" id="alertBtnGroup">
+      <button class="alert-btn" id="alertOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fullscreen Warning -->
+<div id="fullscreenWarning">
+  <div class="warning-box">
+    <h3>⛔ Keluar dari Layar Penuh</h3>
+    <p>Anda keluar dari mode fullscreen.</p>
+    <p>Kembalikan dalam waktu:</p>
+    <div class="timer-big" id="timerWarning">10</div>
+    <p>Jika tidak, kuis akan didiskualifikasi.</p>
+    <button class="btn-back" id="btnBackFullscreen">↩ Kembali ke Fullscreen</button>
+  </div>
+</div>
+
+<!-- Focus Loss Badge -->
+<div id="focusLossBadge" class="focus-loss-badge">
+  ⚠️ Jendela kuis tidak aktif! Kembali dalam 3 detik atau kuis berakhir.
+</div>
+
+<!-- Main Container -->
+<div class="container" id="appContainer">
+
+  <!-- ══════════ HALAMAN MULAI ══════════ -->
+  <div id="startPage">
+    <div class="title">LEMBAR JAWABAN KUIS</div>
+    <div class="subtitle">Isi identitas lalu klik "Mulai Kuis" untuk memulai</div>
+
+    <div class="header-info">
+      <div>
+        <label>Nama:</label>
+        <input type="text" id="nama" placeholder="Tulis nama lengkap" autocomplete="off">
+      </div>
+      <div>
+        <label>Kelas:</label>
+        <input type="text" id="kelas" placeholder="Contoh: XII IPA 1" autocomplete="off">
+      </div>
+      <div>
+        <label>Materi:</label>
+        <input type="text" id="materi" placeholder="Contoh: Aljabar / Peluang" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btnStart">🚀 MULAI KUIS</button>
+      <p style="margin-top:14px; color:#94a3b8; font-size:0.85rem;">
+        * Kuis berjalan dalam mode fullscreen. Jangan keluar dari fullscreen atau pindah tab.
+      </p>
+    </div>
+  </div>
+
+  <!-- ══════════ HALAMAN KUIS ══════════ -->
+  <div id="quizPage" class="hidden">
+    <div class="title">LEMBAR JAWABAN KUIS</div>
+    <div class="subtitle">Pilih satu jawaban yang benar pada setiap soal</div>
+
+    <div class="info-bar">
+      <span class="progress" id="progressDisplay">0 / 10 terjawab</span>
+      <span class="timer" id="timerDisplay">15:00</span>
+    </div>
+
+    <div id="questionsContainer"></div>
+
+    <div class="actions">
+      <button class="btn" id="submitBtn" onclick="kirimJawaban()">📤 KIRIM JAWABAN</button>
+      <div class="notif" id="notif"></div>
+    </div>
+  </div>
+
+  <!-- ══════════ HALAMAN SELESAI ══════════ -->
+  <div id="resultPage" class="hidden">
+    <div class="title">✅ KUIS SELESAI</div>
+    <div class="subtitle">Jawaban Anda telah tersimpan</div>
+
+    <div style="background:#f8fafc; padding:20px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:20px;">
+      <p style="margin-bottom:8px;"><strong>Nama:</strong> <span id="resultNama">-</span></p>
+      <p style="margin-bottom:8px;"><strong>Kelas:</strong> <span id="resultKelas">-</span></p>
+      <p><strong>Materi:</strong> <span id="resultMateri">-</span></p>
+    </div>
+
+    <div id="statusSpreadsheet" style="padding:12px; border-radius:8px; background:#fef3c7; color:#92400e; font-weight:600; font-size:0.95rem;">
+      ⏳ Mengirim jawaban...
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ============================================================
+   KONFIGURASI BACKEND
+   ============================================================ */
+const URL_WEB_APP = "https://script.google.com/macros/s/AKfycbwLdqQAFE9kQdryslHSj-BkIzgBEY30CBBcQ8QF3lxMo_Row980eHaIlGOBSoIOYHhi/exec";
+
+const LETTERS = ["A", "B", "C", "D", "E"];
+const TOTAL_SOAL = 10;
+const WAKTU_QUIZ = 900; // 15 menit (detik)
+const FOCUS_GRACE_PERIOD = 3000; // 3 detik
+
+/* ── State ── */
+let nama = "", kelas = "", materi = "";
+let jawabanUser = {};
+let timeLeft = WAKTU_QUIZ;
+let timerInterval = null;
+let warningInterval = null;
+let warningActive = false;
+let focusInterval = null;
+let focusLostTime = 0;
+let quizFinished = false;
+let JAM_AWAL = null;
+
+/* ── DOM ── */
+const startPage  = document.getElementById("startPage");
+const quizPage   = document.getElementById("quizPage");
+const resultPage = document.getElementById("resultPage");
+const questionsContainer = document.getElementById("questionsContainer");
+const timerDisplay = document.getElementById("timerDisplay");
+const progressDisplay = document.getElementById("progressDisplay");
+const appContainer = document.getElementById("appContainer");
+const fullscreenWarning = document.getElementById("fullscreenWarning");
+const timerWarning = document.getElementById("timerWarning");
+const focusLossBadge = document.getElementById("focusLossBadge");
+
+/* ============================================================
+   CUSTOM ALERT
+   ============================================================ */
+function customAlert(message, icon = "⚠️", withConfirm = false) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("customAlertOverlay");
+    const msgEl = document.getElementById("alertMessage");
+    const iconEl = document.getElementById("alertIcon");
+    const btnGroup = document.getElementById("alertBtnGroup");
+
+    msgEl.textContent = message;
+    iconEl.textContent = icon;
+    overlay.classList.add("active");
+    appContainer.classList.add("blurred");
+    btnGroup.innerHTML = "";
+
+    if (withConfirm) {
+      const btnCancel = document.createElement("button");
+      btnCancel.className = "alert-btn alert-btn-cancel";
+      btnCancel.textContent = "Batal";
+      btnCancel.onclick = () => {
+        overlay.classList.remove("active");
+        appContainer.classList.remove("blurred");
+        resolve(false);
+      };
+      const btnOk = document.createElement("button");
+      btnOk.className = "alert-btn";
+      btnOk.textContent = "Ya / Lanjut";
+      btnOk.onclick = () => {
+        overlay.classList.remove("active");
+        appContainer.classList.remove("blurred");
+        resolve(true);
+      };
+      btnGroup.appendChild(btnCancel);
+      btnGroup.appendChild(btnOk);
+      btnOk.focus();
+    } else {
+      const btnOk = document.createElement("button");
+      btnOk.className = "alert-btn";
+      btnOk.textContent = "OK";
+      btnOk.onclick = () => {
+        overlay.classList.remove("active");
+        appContainer.classList.remove("blurred");
+        resolve(true);
+      };
+      btnGroup.appendChild(btnOk);
+      btnOk.focus();
+    }
+  });
+}
+
+/* ============================================================
+   RENDER LEMBAR JAWABAN (10 soal A-E)
+   ============================================================ */
+function renderSoal() {
+  let html = "";
+  for (let i = 1; i <= TOTAL_SOAL; i++) {
+    html += `<div class="question-row">
+      <div class="question-number">${i}.</div>
+      <div class="options">
+        ${LETTERS.map(h => `
+          <label class="option-label">
+            <input type="radio" name="q${i}" value="${h}" onchange="updateProgress()">
+            <span class="circle">${h}</span>
+          </label>
+        `).join("")}
+      </div>
+    </div>`;
+  }
+  questionsContainer.innerHTML = html;
+}
+
+function updateProgress() {
+  let terjawab = 0;
+  for (let i = 1; i <= TOTAL_SOAL; i++) {
+    if (document.querySelector(`input[name="q${i}"]:checked`)) terjawab++;
+  }
+  progressDisplay.textContent = `${terjawab} / ${TOTAL_SOAL} terjawab`;
+}
+
+/* ============================================================
+   HELPER WAKTU
+   ============================================================ */
+function formatWaktu(date) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+/* ============================================================
+   BLOKIR INTERAKSI BERBAHAYA
+   ============================================================ */
+document.addEventListener("contextmenu", e => e.preventDefault());
+document.addEventListener("copy", e => e.preventDefault());
+document.addEventListener("cut", e => e.preventDefault());
+document.addEventListener("paste", e => e.preventDefault());
+
+/* ============================================================
+   DETEKSI TAB BERUBAH
+   ============================================================ */
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && isQuizActive()) {
+    customAlert("⚠️ Anda terdeteksi berpindah tab! Kuis akan dihentikan otomatis.", "🚫")
+      .then(() => finishQuiz(true));
+  }
+});
+
+/* ============================================================
+   DETEKSI FOKUS HILANG
+   ============================================================ */
+function startFocusMonitoring() {
+  if (focusInterval) clearInterval(focusInterval);
+  focusInterval = setInterval(() => {
+    if (!isQuizActive()) return;
+    if (!document.hasFocus()) {
+      if (focusLostTime === 0) {
+        focusLostTime = Date.now();
+        focusLossBadge.classList.add("active");
+      } else {
+        const elapsed = Date.now() - focusLostTime;
+        if (elapsed > FOCUS_GRACE_PERIOD) {
+          clearInterval(focusInterval);
+          focusInterval = null;
+          focusLossBadge.classList.remove("active");
+          customAlert("⚠️ Anda kehilangan fokus dari jendela kuis terlalu lama! Kuis dihentikan.", "🚫")
+            .then(() => finishQuiz(true));
+        }
+      }
+    } else {
+      if (focusLostTime !== 0) {
+        focusLostTime = 0;
+        focusLossBadge.classList.remove("active");
+      }
+    }
+  }, 500);
+}
+
+function stopFocusMonitoring() {
+  if (focusInterval) { clearInterval(focusInterval); focusInterval = null; }
+  focusLostTime = 0;
+  focusLossBadge.classList.remove("active");
+}
+
+/* ============================================================
+   KEYBOARD RESTRICTION
+   ============================================================ */
+document.addEventListener("keydown", function(e) {
+  if (!isQuizActive()) return;
+  const key = e.key;
+
+  if (key === "Escape" || key === "Esc") {
+    e.preventDefault();
+    customAlert("❓ Apakah Anda ingin menghentikan dan keluar dari kuis sekarang?", "🛑", true)
+      .then(confirmed => { if (confirmed) finishQuiz(true); });
+    return;
+  }
+  if (key === "Tab") {
+    e.preventDefault();
+    customAlert("⚠️ Tombol Tab dilarang saat ujian. Ingin langsung menyelesaikan kuis?", "⚠️", true)
+      .then(confirmed => { if (confirmed) finishQuiz(); });
+    return;
+  }
+  if (key === "Enter") {
+    const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+    if (tag !== "input") {
+      e.preventDefault();
+      customAlert("⚠️ Tombol Enter dilarang. Ingin langsung menyelesaikan kuis?", "⚠️", true)
+        .then(confirmed => { if (confirmed) finishQuiz(); });
+    }
+  }
+});
+
+/* ============================================================
+   FULLSCREEN
+   ============================================================ */
+function requestFullscreen() {
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+}
+
+function showFullscreenWarning() {
+  if (warningActive || quizFinished) return;
+  warningActive = true;
+  fullscreenWarning.style.display = "flex";
+  let t = 10;
+  timerWarning.textContent = t;
+
+  if (warningInterval) clearInterval(warningInterval);
+  warningInterval = setInterval(() => {
+    t--;
+    timerWarning.textContent = t;
+    if (t <= 0) {
+      clearInterval(warningInterval);
+      warningInterval = null;
+      customAlert("⏰ Terlalu lama keluar dari fullscreen. Kuis dihentikan.", "⏰")
+        .then(() => finishQuiz(true));
+    }
+  }, 1000);
+}
+
+function hideFullscreenWarning() {
+  if (warningInterval) { clearInterval(warningInterval); warningInterval = null; }
+  fullscreenWarning.style.display = "none";
+  warningActive = false;
+}
+
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement && isQuizActive()) showFullscreenWarning();
+  else hideFullscreenWarning();
+});
+
+document.getElementById("btnBackFullscreen").addEventListener("click", requestFullscreen);
+
+/* ============================================================
+   TIMER
+   ============================================================ */
+function startTimer() {
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    const min = Math.floor(timeLeft / 60);
+    const sec = timeLeft % 60;
+    timerDisplay.textContent = `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+    if (timeLeft <= 60) timerDisplay.classList.add("warning");
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      customAlert("⏰ Waktu pengerjaan kuis telah habis!", "⏰")
+        .then(() => finishQuiz(true));
+    }
+  }, 1000);
+}
+
+/* ============================================================
+   STATUS KUIS
+   ============================================================ */
+function isQuizActive() {
+  return quizPage && !quizPage.classList.contains("hidden") && !quizFinished;
+}
+
+/* ============================================================
+   MULAI KUIS
+   ============================================================ */
+document.getElementById("btnStart").addEventListener("click", () => {
+  nama   = document.getElementById("nama").value.trim();
+  kelas  = document.getElementById("kelas").value.trim();
+  materi = document.getElementById("materi").value.trim();
+
+  if (!nama || !kelas || !materi) {
+    customAlert("⚠️ Mohon isi Nama, Kelas, dan Materi terlebih dahulu!", "⚠️");
+    return;
+  }
+
+  if (sessionStorage.getItem("kuis_selesai") === "true") {
+    customAlert("ℹ️ Anda sudah menyelesaikan kuis ini sebelumnya.", "ℹ️");
+    return;
+  }
+
+  // Persetujuan aturan
+  customAlert(
+    "Dengan memulai kuis, Anda menyetujui aturan:\n\n" +
+    "• Kuis berjalan dalam mode fullscreen\n" +
+    "• Dilarang pindah tab atau keluar layar\n" +
+    "• Dilarang klik kanan, copy, atau paste\n" +
+    "• Pelanggaran = didiskualifikasi",
+    "📜", true
+  ).then(confirmed => {
+    if (!confirmed) return;
+
+    JAM_AWAL = new Date();
+    startPage.classList.add("hidden");
+    quizPage.classList.remove("hidden");
+    renderSoal();
+    updateProgress();
+    timerDisplay.textContent = "15:00";
+    timerDisplay.classList.remove("warning");
+    timeLeft = WAKTU_QUIZ;
+    jawabanUser = {};
+    quizFinished = false;
+
+    startTimer();
+    startFocusMonitoring();
+    requestFullscreen();
+  });
+});
+
+/* ============================================================
+   KIRIM JAWABAN
+   ============================================================ */
+async function kirimJawaban() {
+  const notif = document.getElementById("notif");
+  const btn = document.getElementById("submitBtn");
+  notif.className = "notif";
+
+  // Validasi: semua soal harus dijawab
+  const jawaban = [];
+  for (let i = 1; i <= TOTAL_SOAL; i++) {
+    const checked = document.querySelector(`input[name="q${i}"]:checked`);
+    if (!checked) {
+      notif.className = "notif error";
+      notif.textContent = `⚠️ Soal nomor ${i} belum dijawab!`;
+      return;
+    }
+    jawaban.push(checked.value);
+  }
+
+  // Konfirmasi
+  const ok = await customAlert("📤 Kirim jawaban sekarang? Jawaban tidak bisa diubah setelah terkirim.", "❓", true);
+  if (!ok) return;
+
+  const JAM_AKHIR = new Date();
+
+  const payload = {
+    nama: nama,
+    kelas: kelas,
+    materi: materi,
+    jamAwal: formatWaktu(JAM_AWAL),
+    jamAkhir: formatWaktu(JAM_AKHIR),
+    tanggal: new Date().toLocaleDateString("id-ID"),
+    jawaban: jawaban
+  };
+
+  btn.disabled = true;
+  btn.textContent = "MENGIRIM...";
+
+  try {
+    await fetch(URL_WEB_APP, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+
+    notif.className = "notif success";
+    notif.innerHTML = `✅ Jawaban berhasil disimpan!<br>
+      <small>Jam mulai: ${payload.jamAwal} &nbsp;|&nbsp; Jam selesai: ${payload.jamAkhir}</small>`;
+    btn.textContent = "TERKIRIM ✔";
+
+    // Kunci semua input
+    document.querySelectorAll("#quizPage input").forEach(el => el.disabled = true);
+
+    // Tampilkan halaman hasil
+    setTimeout(() => {
+      quizPage.classList.add("hidden");
+      resultPage.classList.remove("hidden");
+      document.getElementById("resultNama").textContent = nama;
+      document.getElementById("resultKelas").textContent = kelas;
+      document.getElementById("resultMateri").textContent = materi;
+
+      const status = document.getElementById("statusSpreadsheet");
+      status.style.background = "#dcfce7";
+      status.style.color = "#166534";
+      status.innerHTML = `✅ Jawaban tersimpan!<br>
+        <small style="font-weight:400;">Jam mulai: ${payload.jamAwal} | Jam selesai: ${payload.jamAkhir}</small>`;
+
+      sessionStorage.setItem("kuis_selesai", "true");
+      sessionStorage.setItem("kuis_nama", nama);
+      sessionStorage.setItem("kuis_kelas", kelas);
+      sessionStorage.setItem("kuis_materi", materi);
+
+      stopFocusMonitoring();
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    }, 800);
+
+  } catch (err) {
+    notif.className = "notif error";
+    notif.textContent = "❌ Gagal mengirim: " + err.message;
+    btn.disabled = false;
+    btn.textContent = "📤 KIRIM JAWABAN";
+  }
+}
+
+/* ============================================================
+   FINISH QUIZ (untuk diskualifikasi / waktu habis)
+   ============================================================ */
+function finishQuiz(force = false) {
+  if (quizFinished) return;
+  quizFinished = true;
+
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  stopFocusMonitoring();
+
+  document.querySelectorAll("#quizPage input, #submitBtn").forEach(el => el.disabled = true);
+
+  quizPage.classList.add("hidden");
+  resultPage.classList.remove("hidden");
+  document.getElementById("resultNama").textContent = nama || "-";
+  document.getElementById("resultKelas").textContent = kelas || "-";
+  document.getElementById("resultMateri").textContent = materi || "-";
+
+  const status = document.getElementById("statusSpreadsheet");
+  status.style.background = "#fee2e2";
+  status.style.color = "#991b1b";
+  status.textContent = force
+    ? "❌ Kuis dihentikan paksa (diskualifikasi)."
+    : "ℹ️ Kuis selesai.";
+
+  // Tetap kirim penanda jika ada nama
+  if (nama && kelas) {
+    const JAM_AKHIR = new Date();
+    const payload = {
+      nama, kelas, materi,
+      jamAwal: JAM_AWAL ? formatWaktu(JAM_AWAL) : "-",
+      jamAkhir: formatWaktu(JAM_AKHIR),
+      tanggal: new Date().toLocaleDateString("id-ID"),
+      jawaban: ["DISKUALIFIKASI"]
+    };
+    fetch(URL_WEB_APP, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    }).catch(() => {});
+  }
+
+  sessionStorage.setItem("kuis_selesai", "true");
+
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  hideFullscreenWarning();
+}
+
+/* ============================================================
+   LOAD: Cek session jika sudah selesai
+   ============================================================ */
+window.addEventListener("load", () => {
+  if (sessionStorage.getItem("kuis_selesai") === "true") {
+    startPage.classList.add("hidden");
+    quizPage.classList.add("hidden");
+    resultPage.classList.remove("hidden");
+    document.getElementById("resultNama").textContent = sessionStorage.getItem("kuis_nama") || "-";
+    document.getElementById("resultKelas").textContent = sessionStorage.getItem("kuis_kelas") || "-";
+    document.getElementById("resultMateri").textContent = sessionStorage.getItem("kuis_materi") || "-";
+    const status = document.getElementById("statusSpreadsheet");
+    status.style.background = "#e0e7ff";
+    status.style.color = "#3730a3";
+    status.textContent = "ℹ️ Anda sudah menyelesaikan kuis ini pada sesi sebelumnya.";
+  }
+});
+</script>
+
+</body>
+</html>
