@@ -61,7 +61,7 @@
     outline: none; border-color: #e53935;
   }
 
-  /* ── Info Bar (Timer & Progress) ── */
+  /* ── Info Bar ── */
   .info-bar {
     display: flex; justify-content: space-between;
     align-items: center; flex-wrap: wrap;
@@ -72,6 +72,10 @@
     font-weight: 600; color: #555; font-size: 14px;
     background: #f1f5f9; padding: 5px 14px;
     border-radius: 20px; border: 1px solid #e2e8f0;
+  }
+  .info-bar .progress.warn {
+    background: #fef3c7; color: #92400e;
+    border-color: #fcd34d;
   }
   .info-bar .timer {
     font-size: 1.3rem; font-weight: 700; color: #dc2626;
@@ -156,14 +160,15 @@
   #customAlertOverlay.active { display: flex; }
   .alert-box {
     background: #fff; padding: 28px 32px;
-    border-radius: 20px; max-width: 420px; width: 90%;
+    border-radius: 20px; max-width: 440px; width: 90%;
     text-align: center; border: 1px solid #cbd5e1;
     box-shadow: 0 20px 40px rgba(0,0,0,0.12);
   }
   .alert-box .alert-icon { font-size: 2.8rem; margin-bottom: 8px; }
   .alert-box .alert-message {
-    font-size: 1.05rem; color: #1e293b;
+    font-size: 1.02rem; color: #1e293b;
     line-height: 1.5; margin-bottom: 20px;
+    white-space: pre-line;
   }
   .alert-box .alert-btn-group {
     display: flex; gap: 10px; justify-content: center;
@@ -306,7 +311,7 @@
     <div class="actions">
       <button class="btn btn-primary" id="btnStart">🚀 MULAI KUIS</button>
       <p style="margin-top:14px; color:#94a3b8; font-size:0.85rem;">
-        * Kuis berjalan dalam mode fullscreen. Jangan keluar dari fullscreen atau pindah tab.
+        * Kuis berjalan dalam mode fullscreen. Anda bebas menjawab berapa saja soal.
       </p>
     </div>
   </div>
@@ -314,7 +319,7 @@
   <!-- ══════════ HALAMAN KUIS ══════════ -->
   <div id="quizPage" class="hidden">
     <div class="title">LEMBAR JAWABAN KUIS</div>
-    <div class="subtitle">Pilih satu jawaban yang benar pada setiap soal</div>
+    <div class="subtitle">Pilih jawaban pada soal yang ingin dijawab (boleh sebagian)</div>
 
     <div class="info-bar">
       <span class="progress" id="progressDisplay">0 / 10 terjawab</span>
@@ -355,12 +360,11 @@ const URL_WEB_APP = "https://script.google.com/macros/s/AKfycbwLdqQAFE9kQdryslHS
 
 const LETTERS = ["A", "B", "C", "D", "E"];
 const TOTAL_SOAL = 10;
-const WAKTU_QUIZ = 900; // 15 menit (detik)
-const FOCUS_GRACE_PERIOD = 3000; // 3 detik
+const WAKTU_QUIZ = 900; // 15 menit
+const FOCUS_GRACE_PERIOD = 3000;
 
 /* ── State ── */
 let nama = "", kelas = "", materi = "";
-let jawabanUser = {};
 let timeLeft = WAKTU_QUIZ;
 let timerInterval = null;
 let warningInterval = null;
@@ -434,7 +438,7 @@ function customAlert(message, icon = "⚠️", withConfirm = false) {
 }
 
 /* ============================================================
-   RENDER LEMBAR JAWABAN (10 soal A-E)
+   RENDER LEMBAR JAWABAN
    ============================================================ */
 function renderSoal() {
   let html = "";
@@ -454,12 +458,20 @@ function renderSoal() {
   questionsContainer.innerHTML = html;
 }
 
+/* ============================================================
+   UPDATE PROGRESS (info jumlah terjawab)
+   ============================================================ */
 function updateProgress() {
   let terjawab = 0;
   for (let i = 1; i <= TOTAL_SOAL; i++) {
     if (document.querySelector(`input[name="q${i}"]:checked`)) terjawab++;
   }
-  progressDisplay.textContent = `${terjawab} / ${TOTAL_SOAL} terjawab`;
+  const sisa = TOTAL_SOAL - terjawab;
+  progressDisplay.textContent = `${terjawab} / ${TOTAL_SOAL} terjawab` +
+    (terjawab < TOTAL_SOAL ? ` · ${sisa} kosong` : "");
+
+  if (terjawab < TOTAL_SOAL) progressDisplay.classList.add("warn");
+  else progressDisplay.classList.remove("warn");
 }
 
 /* ============================================================
@@ -638,12 +650,12 @@ document.getElementById("btnStart").addEventListener("click", () => {
     return;
   }
 
-  // Persetujuan aturan
   customAlert(
     "Dengan memulai kuis, Anda menyetujui aturan:\n\n" +
     "• Kuis berjalan dalam mode fullscreen\n" +
     "• Dilarang pindah tab atau keluar layar\n" +
     "• Dilarang klik kanan, copy, atau paste\n" +
+    "• Anda bebas menjawab berapa saja soal\n" +
     "• Pelanggaran = didiskualifikasi",
     "📜", true
   ).then(confirmed => {
@@ -657,7 +669,6 @@ document.getElementById("btnStart").addEventListener("click", () => {
     timerDisplay.textContent = "15:00";
     timerDisplay.classList.remove("warning");
     timeLeft = WAKTU_QUIZ;
-    jawabanUser = {};
     quizFinished = false;
 
     startTimer();
@@ -667,27 +678,42 @@ document.getElementById("btnStart").addEventListener("click", () => {
 });
 
 /* ============================================================
-   KIRIM JAWABAN
+   ✅ KIRIM JAWABAN — VERSI FLEKSIBEL
+   Semua soal dikirim; yang belum dijawab = ""
    ============================================================ */
 async function kirimJawaban() {
   const notif = document.getElementById("notif");
   const btn = document.getElementById("submitBtn");
   notif.className = "notif";
 
-  // Validasi: semua soal harus dijawab
+  // ── Kumpulkan jawaban (yang kosong = "")
   const jawaban = [];
+  let jumlahTerjawab = 0;
   for (let i = 1; i <= TOTAL_SOAL; i++) {
     const checked = document.querySelector(`input[name="q${i}"]:checked`);
-    if (!checked) {
-      notif.className = "notif error";
-      notif.textContent = `⚠️ Soal nomor ${i} belum dijawab!`;
-      return;
+    if (checked) {
+      jawaban.push(checked.value);
+      jumlahTerjawab++;
+    } else {
+      jawaban.push(""); // ← kosong, tidak apa-apa
     }
-    jawaban.push(checked.value);
   }
 
-  // Konfirmasi
-  const ok = await customAlert("📤 Kirim jawaban sekarang? Jawaban tidak bisa diubah setelah terkirim.", "❓", true);
+  // ── Konfirmasi: tampilkan jumlah terjawab & sisa kosong
+  const sisaKosong = TOTAL_SOAL - jumlahTerjawab;
+  let pesanKonfirmasi =
+    `📊 Anda mengisi ${jumlahTerjawab} dari ${TOTAL_SOAL} soal.\n` +
+    `Soal kosong: ${sisaKosong}\n\n`;
+
+  if (jumlahTerjawab === 0) {
+    pesanKonfirmasi += "⚠️ Anda belum menjawab satu soal pun. Tetap kirim?";
+  } else if (sisaKosong > 0) {
+    pesanKonfirmasi += "⚠️ Masih ada soal kosong. Tetap kirim jawaban?";
+  } else {
+    pesanKonfirmasi += "✅ Semua soal sudah terisi. Kirim sekarang?";
+  }
+
+  const ok = await customAlert(pesanKonfirmasi, "📤", true);
   if (!ok) return;
 
   const JAM_AKHIR = new Date();
@@ -699,7 +725,8 @@ async function kirimJawaban() {
     jamAwal: formatWaktu(JAM_AWAL),
     jamAkhir: formatWaktu(JAM_AKHIR),
     tanggal: new Date().toLocaleDateString("id-ID"),
-    jawaban: jawaban
+    jumlahTerjawab: jumlahTerjawab,   // ← info tambahan
+    jawaban: jawaban                   // ← array 10 nilai (bisa ada "")
   };
 
   btn.disabled = true;
@@ -715,10 +742,10 @@ async function kirimJawaban() {
 
     notif.className = "notif success";
     notif.innerHTML = `✅ Jawaban berhasil disimpan!<br>
-      <small>Jam mulai: ${payload.jamAwal} &nbsp;|&nbsp; Jam selesai: ${payload.jamAkhir}</small>`;
+      <small>Terjawab: ${jumlahTerjawab}/${TOTAL_SOAL} &nbsp;|&nbsp; 
+      Jam: ${payload.jamAwal} → ${payload.jamAkhir}</small>`;
     btn.textContent = "TERKIRIM ✔";
 
-    // Kunci semua input
     document.querySelectorAll("#quizPage input").forEach(el => el.disabled = true);
 
     // Tampilkan halaman hasil
@@ -733,7 +760,10 @@ async function kirimJawaban() {
       status.style.background = "#dcfce7";
       status.style.color = "#166534";
       status.innerHTML = `✅ Jawaban tersimpan!<br>
-        <small style="font-weight:400;">Jam mulai: ${payload.jamAwal} | Jam selesai: ${payload.jamAkhir}</small>`;
+        <small style="font-weight:400;">
+          Terjawab: ${jumlahTerjawab}/${TOTAL_SOAL} soal &nbsp;|&nbsp; 
+          Jam: ${payload.jamAwal} → ${payload.jamAkhir}
+        </small>`;
 
       sessionStorage.setItem("kuis_selesai", "true");
       sessionStorage.setItem("kuis_nama", nama);
@@ -754,7 +784,7 @@ async function kirimJawaban() {
 }
 
 /* ============================================================
-   FINISH QUIZ (untuk diskualifikasi / waktu habis)
+   FINISH QUIZ (diskualifikasi / waktu habis)
    ============================================================ */
 function finishQuiz(force = false) {
   if (quizFinished) return;
@@ -778,7 +808,6 @@ function finishQuiz(force = false) {
     ? "❌ Kuis dihentikan paksa (diskualifikasi)."
     : "ℹ️ Kuis selesai.";
 
-  // Tetap kirim penanda jika ada nama
   if (nama && kelas) {
     const JAM_AKHIR = new Date();
     const payload = {
@@ -786,6 +815,7 @@ function finishQuiz(force = false) {
       jamAwal: JAM_AWAL ? formatWaktu(JAM_AWAL) : "-",
       jamAkhir: formatWaktu(JAM_AKHIR),
       tanggal: new Date().toLocaleDateString("id-ID"),
+      jumlahTerjawab: 0,
       jawaban: ["DISKUALIFIKASI"]
     };
     fetch(URL_WEB_APP, {
@@ -803,7 +833,7 @@ function finishQuiz(force = false) {
 }
 
 /* ============================================================
-   LOAD: Cek session jika sudah selesai
+   LOAD: Cek session
    ============================================================ */
 window.addEventListener("load", () => {
   if (sessionStorage.getItem("kuis_selesai") === "true") {
